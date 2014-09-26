@@ -29,6 +29,7 @@ class TestFailFast(TestCase):
         except validictory.MultipleValidationError as mve:
             assert len(mve.errors) == 2
 
+
     def test_multi_error_in_list(self):
         schema = {
             "type": "object",
@@ -75,3 +76,61 @@ class TestFailFast(TestCase):
             validictory.validate(data, schema, fail_fast=False)
         except validictory.MultipleValidationError as mve:
             assert len(mve.errors) == 2
+
+
+class TestArrayWithEnum(TestCase):
+    def test_multi_error_regression_wrong_schema(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "e1": {"type": "array", "enum": ["one", "two"]},
+            }
+        }
+        data = {"name": 2, "e1": ["one", "n"]}
+
+        # ensure it raises an error
+        self.assertRaises(validictory.ValidationError, validictory.validate,
+                          data, schema, fail_fast=True)
+
+        # ensure it raises a MultiError
+        self.assertRaises(validictory.MultipleValidationError, validictory.validate,
+                          data, schema, fail_fast=False)
+
+        # ensure that the MultiError has 2 errors
+        try:
+            validictory.validate(data, schema, fail_fast=False)
+        except validictory.MultipleValidationError as mve:
+            print mve
+            assert len(mve.errors) == 2
+
+        assert 0
+
+    def test_multi_error_regression_works(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "e2": {"type": "array", "items": {"type": "string", "enum": ["one", "two"]},
+                },
+            }
+        }
+        data = {"name": 2, "e2": ["one", "n"]}
+
+        # ensure it raises an error
+        self.assertRaises(validictory.ValidationError, validictory.validate,
+                          data, schema, fail_fast=True)
+
+        # ensure it raises a MultiError
+        self.assertRaises(validictory.MultipleValidationError, validictory.validate,
+                          data, schema, fail_fast=False)
+
+        # ensure that the MultiError has 2 errors
+        try:
+            validictory.validate(data, schema, fail_fast=False)
+        except validictory.MultipleValidationError as mve:
+            print mve
+            assert len(mve.errors) == 2
+
+        assert 0
+
