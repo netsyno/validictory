@@ -536,6 +536,83 @@ class SchemaValidator(object):
         self._error("is disallowed for field '{fieldname}'", x.get(fieldname), fieldname,
                     disallow=disallow, path=path)
 
+    def validate_allOf(self, x, fieldname, schema, path, allOf=None):
+        '''
+        Validates that the value of the given field matches all of the defined
+        schemas
+        '''
+        value = x.get(fieldname, None)
+        if value is not None:
+            check_xOf_schema(fieldname=fieldname, xOf=allOf)
+
+            matches = []
+            for index, possibleSchemaMatch in enumerate(allOf):
+                try:
+                    self.__validate("_data", {"_data": value}, possibleSchemaMatch,
+                                    '{}[{}]'.format(path, index))
+                    matches.append(index)
+                except FieldValidationError:
+                    pass
+
+            print('matches', matches)
+
+            if len(matches) != len(allOf):
+                raise FieldValidationError(
+                    fieldname=fieldname,
+                    value=value,
+                    message='Must match allOf {}'.format(allOf)
+                )
+
+    def validate_anyOf(self, x, fieldname, schema, path, anyOf=None):
+        '''
+        Validates that the value of the given field matches any of the defined
+        schemas
+        '''
+        value = x.get(fieldname, None)
+        if value is not None:
+            check_xOf_schema(fieldname=fieldname, xOf=anyOf)
+
+            matches = []
+            for index, possibleSchemaMatch in enumerate(anyOf):
+                try:
+                    self.__validate("_data", {"_data": value}, possibleSchemaMatch,
+                                    '{}[{}]'.format(path, index))
+                    matches.append(index)
+                except FieldValidationError:
+                    pass
+
+            if not matches:
+                raise FieldValidationError(
+                    fieldname=fieldname,
+                    value=value,
+                    message='Must match anyOf {}'.format(anyOf)
+                )
+
+    def validate_oneOf(self, x, fieldname, schema, path, oneOf=None):
+        '''
+        Validates that the value of the given field matches exactly one of the
+        defined schemas
+        '''
+        value = x.get(fieldname, None)
+        if value is not None:
+            check_xOf_schema(fieldname=fieldname, xOf=oneOf)
+
+            matches = []
+            for index, possibleSchemaMatch in enumerate(oneOf):
+                try:
+                    self.__validate("_data", {"_data": value}, possibleSchemaMatch,
+                                    '{}[{}]'.format(path, index))
+                    matches.append(index)
+                except FieldValidationError:
+                    pass
+
+            if len(matches) != 1:
+                raise FieldValidationError(
+                    fieldname=fieldname,
+                    value=value,
+                    message='Must match exactly oneOf {}'.format(oneOf)
+                )
+
     def validate(self, data, schema):
         '''
         Validates a piece of json data against the provided json-schema.
@@ -578,3 +655,13 @@ class SchemaValidator(object):
                     data[fieldname] = schema['default']
 
         return data
+
+
+def check_xOf_schema(fieldname, xOf):
+    if isinstance(xOf, (list, tuple)):
+        for possibleSchemaMatch in xOf:
+            if not isinstance(possibleSchemaMatch, dict):
+                raise SchemaError("Error in {}: Expected {} to only contain objects".format(fieldname, xOf))
+    else:
+        raise SchemaError("Properties definition of field '{}' is "
+                          "not a list".format(fieldname))
