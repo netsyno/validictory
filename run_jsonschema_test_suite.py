@@ -9,7 +9,6 @@ from __future__ import print_function
 
 import glob
 import json
-import io
 import itertools
 import os
 import re
@@ -37,6 +36,26 @@ TESTS_DIR = os.path.join(SUITE, "tests")
 
 
 import unittest
+import mock
+import subprocess
+
+
+JSONSCHEMA_SUITE = os.path.join(SUITE, "bin", "jsonschema_suite")
+try:
+    remotes_stdout = subprocess.check_output(
+        ["python", JSONSCHEMA_SUITE, "remotes"]
+    )
+except subprocess.CalledProcessError as exc:
+    print(exc)
+    print(
+        'One reason for the error might be that you have to download '
+        'JSON-Schema-Test-Suite first:\n\n'
+        'git clone git@github.com:json-schema/JSON-Schema-Test-Suite.git --depth=1\n'
+    )
+    sys.exit(1)
+if PY3:
+    remotes_stdout = remotes_stdout.decode('utf8')
+REMOTES = json.loads(remotes_stdout)
 
 
 from validictory import validate, FieldValidationError
@@ -53,7 +72,7 @@ from validictory.preprocess_ref import preprocess_ref
 #     return class_decorator
 
 
-def add_tests(tests):
+def cls_decorator_for_tests(tests):
     def class_decorator(cls):
         for name, test in tests:
             setattr(cls, name, test)
@@ -141,20 +160,7 @@ std_tests = load_json_cases_gen(
     skip=narrow_unicode_build,
     ignore_glob="draft4/refRemote.json",
 )
-TestJsonSchemaDraft4 = add_tests(std_tests)(unittest.TestCase)
-
-
-import mock
-import subprocess
-
-
-JSONSCHEMA_SUITE = os.path.join(SUITE, "bin", "jsonschema_suite")
-remotes_stdout = subprocess.check_output(
-    ["python", JSONSCHEMA_SUITE, "remotes"]
-)
-if PY3:
-    remotes_stdout = remotes_stdout.decode('utf8')
-REMOTES = json.loads(remotes_stdout)
+TestJsonSchemaDraft4 = cls_decorator_for_tests(std_tests)(unittest.TestCase)
 
 
 def mock_get_ref_definition(schema, matched_value):
@@ -178,8 +184,12 @@ rem_tests = load_json_cases_gen(
     tests_glob="draft4/refRemote.json",
     skip=narrow_unicode_build,
 )
-TestDraft4RemoteResolution = add_tests(rem_tests)(TestDraft4RemoteResolution)
+TestDraft4RemoteResolution = cls_decorator_for_tests(rem_tests)(TestDraft4RemoteResolution)
 
 
 if __name__ == '__main__':
-    unittest.main()
+    try:
+        import pytest
+        pytest.main([__file__])
+    except ImportError:
+        unittest.main()
